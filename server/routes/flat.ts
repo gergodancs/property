@@ -2,6 +2,7 @@ import express = require('express');
 import jwt = require('jsonwebtoken');
 import multer = require("multer");
 import * as path from "node:path";
+import * as fs from 'fs';
 import {pool} from "../db";
 
 const router = express.Router();
@@ -22,12 +23,18 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
+const UPLOADS_DIR = path.join(__dirname, '../uploads');
+
+if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, {recursive: true});
+}
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'uploads/'); // directory to save files
+        cb(null, UPLOADS_DIR);
     },
     filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname)); // generate unique filename
+        cb(null, Date.now() + path.extname(file.originalname));
     }
 });
 
@@ -41,7 +48,6 @@ const parsePictures = (files) => {
 };
 
 router.post('/rent', authenticateToken, upload.array('pictures', 10), async (req: any, res: any) => {
-    console.log(req);
     const {position, district, city, country, title, shortDescription, description, price, email} = req.body;
     const pictures = parsePictures(req.files);
 
@@ -97,6 +103,27 @@ router.get('/for-rent', async (_req, res) => {
     try {
         const flatsForRent = await pool.query('SELECT * FROM flats_for_rent');
         res.json(flatsForRent.rows);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server error');
+    }
+});
+
+router.get('/for-sale', async (_req, res) => {
+    try {
+        const flatsForSale = await pool.query('SELECT * FROM flats_for_sale');
+        res.json(flatsForSale.rows);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server error');
+    }
+});
+
+router.get('/all', async (_req, res) => {
+    try {
+        const flatsForRent = await pool.query('SELECT * FROM flats_for_rent');
+        const flatsForSale = await pool.query('SELECT * FROM flats_for_sale');
+        res.json([...flatsForRent.rows, ...flatsForSale.rows]);
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');
